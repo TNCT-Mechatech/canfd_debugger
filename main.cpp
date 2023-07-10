@@ -64,8 +64,6 @@ int get_new_id();
 // main() runs in its own thread in the OS
 int main()
 {
-
-
     //  init messages
     for (int i = 0; i < SIZE; i++) {
         messages[i].is_used = false;
@@ -75,6 +73,24 @@ int main()
         messages[i].receive_at = 0;
         messages[i].received_count = 0;
         messages[i].last_received_count = 0;
+    }
+
+    ACAN2517FDSettings settings (ACAN2517FDSettings::OSC_4MHz, 125UL * 1000UL, DataBitRateFactor::x1);
+    
+    //  listen only 
+    settings.mRequestedMode = ACAN2517FDSettings::ListenOnly;
+
+    //  disable tx buffer
+    settings.mDriverTransmitFIFOSize = 0;
+    settings.mDriverReceiveFIFOSize = 6;
+
+
+    printf("initializing device...\n\r");
+    const uint32_t errorCode = dev_can.begin (settings) ;
+    if (errorCode == 0) {
+        printf("initialized device!\n\r");
+    }else{
+        printf("Configuration error 0x%x\n\r", errorCode);
     }
 
     while (true) {
