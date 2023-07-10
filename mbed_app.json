@@ -1,0 +1,14 @@
+{
+    "config": {
+        "serial_bridge_mbed": {
+            "help": "SerialBridge Macro",
+            "macro_name": "MBED_SB",
+            "value": 0
+        }
+    },
+    "target_overrides": {
+        "*": {
+            "target.printf_lib": "std"
+        }
+    }
+}
