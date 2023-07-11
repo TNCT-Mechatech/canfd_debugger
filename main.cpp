@@ -17,7 +17,7 @@ using namespace acan2517fd;
 #define ACKNOWLEDGE D9
 
 #define UPDATE_DURATION 50
-#define LOG_DURATION 2000
+#define LOG_DURATION 1000
 
 Timer timer;
 
@@ -64,6 +64,8 @@ int get_new_id();
 // main() runs in its own thread in the OS
 int main()
 {
+    printf("CAN FD Software Debugger\n\r");
+
     //  init messages
     for (int i = 0; i < SIZE; i++) {
         messages[i].is_used = false;
@@ -92,6 +94,8 @@ int main()
     }else{
         printf("Configuration error 0x%x\n\r", errorCode);
     }
+
+    timer.start();
 
     while (true) {
         current_time = getMillisecond();
@@ -166,7 +170,7 @@ void report() {
     double elapsed_second = elapsed_time / 1000.0;
 
     printf("==============================\n\r");
-    printf("elapsed time[ms]: %.2lf\n\r", elapsed_second);
+    printf("elapsed time[s]: %.2lf\n\r", elapsed_second);
     printf("< Received message list >\n\n\r");
     
     //  print received messages with rate
@@ -177,22 +181,30 @@ void report() {
 
         double last_received_at = (elapsed_time - messages[i].receive_at) / 1000.0;
 
-        double rate = (messages[i].received_count - messages[i].last_received_count) / (LOG_DURATION / 1000.0);
+        double rate = (messages[i].received_count - messages[i].last_received_count) / ((elapsed_time - last_log_time)/ 1000.0);
         messages[i].last_received_count = messages[i].received_count;
 
-        printf("id: %4u len: %2u rate: %.1lf received at: %.1lf\n\r", messages[i].id, messages[i].len, rate, last_received_at);
+        printf(
+            "id: %2u len: %2u rate: %.1lf received count: %3d received at: %.3lf\n\r", 
+            messages[i].id, 
+            messages[i].len, 
+            rate, 
+            messages[i].received_count, 
+            last_received_at
+        );
         
         //  show data
-        for (int j = 0; i < messages[i].len; j++) {
+        for (int j = 0; j < messages[i].len; j++) {
             printf(" %x", messages[i].data[j]);
             
             if ((j+1) % 5 == 0) {
                 printf("   ");
             }
+            if ((j+1) % 15 == 0) {
+                printf("\n\r");
+            }
         }
 
         printf("\n\n\r");
     }
-
-    printf("END\n\n\r");
 }
