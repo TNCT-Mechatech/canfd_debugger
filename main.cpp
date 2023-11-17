@@ -10,11 +10,13 @@
 
 using namespace acan2517fd;
 
-#define MOSI D11
-#define MISO D12
-#define SCLK D13
-#define CS D10
-#define ACKNOWLEDGE D9
+#define SPI_MOSI PA_7
+#define SPI_MISO PA_6
+#define SPI_SCLK PB_3
+#define SPI_CS PA_4
+#define SPI_INT PA_3
+#define ACKNOWLEDGE PA_1
+
 
 #define UPDATE_DURATION 50
 #define LOG_DURATION 1000
@@ -29,17 +31,20 @@ uint32_t getMillisecond() {
 }
 
 //  spi and can device
-SPI spi(MOSI, MISO, SCLK);
-MbedHardwareSPI hardware_dev(spi, CS);
-ACAN2517FD dev_can(hardware_dev, getMillisecond);
-
-//  ACKNOWLEDGE LED
+SPI spi(SPI_MOSI, SPI_MISO, SPI_SCLK);
 DigitalOut acknowledge(ACKNOWLEDGE);
+MbedHardwareSPI dev_spi(spi, SPI_CS);
+ACAN2517FD dev_can(dev_spi, getMillisecond);
+DigitalIn canfd_int(SPI_INT);
+
 
 //  loop counter
 uint32_t last_update_time = 0;
 uint32_t last_log_time = 0;
 uint32_t current_time = 0;
+
+//  error count
+int error_count = 0;
 
 //  observing data
 typedef struct {
@@ -77,7 +82,7 @@ int main()
         messages[i].last_received_count = 0;
     }
 
-    ACAN2517FDSettings settings (ACAN2517FDSettings::OSC_4MHz, 125UL * 1000UL, DataBitRateFactor::x1);
+    ACAN2517FDSettings settings (ACAN2517FDSettings::OSC_4MHz, 125UL * 1000UL, DataBitRateFactor::x8);
     
     //  listen only 
     settings.mRequestedMode = ACAN2517FDSettings::ListenOnly;
@@ -85,6 +90,16 @@ int main()
     //  disable tx buffer
     settings.mDriverTransmitFIFOSize = 0;
     settings.mDriverReceiveFIFOSize = 6;
+
+    settings.mBitRatePrescaler = 1;
+    //  Arbitation Bit Rate
+    settings.mArbitrationPhaseSegment1 = 255;
+    settings.mArbitrationPhaseSegment2 = 64;
+    settings.mArbitrationSJW = 64;
+    //  Data Bit Rate
+    settings.mDataPhaseSegment1 = 31;
+    settings.mDataPhaseSegment2 = 8;
+    settings.mDataSJW = 8;
 
 
     printf("initializing device...\n\r");
@@ -101,7 +116,9 @@ int main()
         current_time = getMillisecond();
 
         //  can poll
-        dev_can.poll();
+        if (!canfd_int) {
+            dev_can.isr_poll_core();
+        }
 
         if(current_time - last_update_time > UPDATE_DURATION) {
             while (dev_can.available()) {
@@ -131,6 +148,8 @@ int main()
                         messages[id].receive_at = current_time;
                         messages[id].received_count++;
                     }
+                } else {
+                    error_count++;
                 }
             }
 
@@ -144,6 +163,8 @@ int main()
             //  update time
             last_log_time = current_time;
         }
+
+        wait_us(1000*10);
     }
 }
 
@@ -171,6 +192,7 @@ void report() {
 
     printf("==============================\n\r");
     printf("elapsed time[s]: %.2lf\n\r", elapsed_second);
+    printf("erorr count: %d\n\r", error_count);
     printf("< Received message list >\n\n\r");
     
     //  print received messages with rate
